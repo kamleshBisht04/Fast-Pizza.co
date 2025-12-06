@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState } from "react";
-import { Form, redirect } from "react-router-dom";
+import { Form, redirect, useActionData, useNavigation } from "react-router-dom";
 import { createOrder } from "../../services/apiRestaurant";
 
 // https://uibakery.io/regex-library/phone-number
@@ -30,34 +30,43 @@ const fakeCart = [
     totalPrice: 15,
   },
 ];
-
 function CreateOrder() {
-  // const [withPriority, setWithPriority] = useState(false);
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
+  const actionData = useActionData();
+
   const cart = fakeCart;
 
   return (
     <div>
       <h2>Ready to order? Let's go!</h2>
-
-      {/* <Form method="POST" action="/order/new"> */}
       <Form method="POST">
         <div>
           <label>First Name</label>
-          <input type="text" name="customer" required />
+          <input
+            type="text"
+            name="customer"
+            defaultValue={actionData?.values?.customer || ""}
+            required
+          />
+          {actionData?.errors?.customer && <p>{actionData.errors.customer}</p>}
         </div>
 
         <div>
           <label>Phone number</label>
-          <div>
-            <input type="tel" name="phone" required />
-          </div>
+          <input type="tel" name="phone" defaultValue={actionData?.values?.phone || ""} required />
+          {actionData?.errors?.phone && <p>{actionData.errors.phone}</p>}
         </div>
 
         <div>
           <label>Address</label>
-          <div>
-            <input type="text" name="address" required />
-          </div>
+          <input
+            type="text"
+            name="address"
+            defaultValue={actionData?.values?.address || ""}
+            required
+          />
+          {actionData?.errors?.address && <p>{actionData.errors.address}</p>}
         </div>
 
         <div>
@@ -65,31 +74,46 @@ function CreateOrder() {
             type="checkbox"
             name="priority"
             id="priority"
-            // value={withPriority}
-            // onChange={(e) => setWithPriority(e.target.checked)}
+            defaultChecked={actionData?.values?.priority === "on"}
           />
-          <label htmlFor="priority">Want to yo give your order priority?</label>
+          <label htmlFor="priority">Want to give your order priority?</label>
         </div>
 
-        <div>
-          <input type="hidden" name="cart" value={JSON.stringify(cart)} />
-          <button>Order now</button>
-        </div>
+        <input type="hidden" name="cart" value={JSON.stringify(cart)} />
+
+        <button disabled={isSubmitting}>{isSubmitting ? "Placing order..." : "Order now"}</button>
       </Form>
     </div>
   );
 }
 
 export async function action({ request }) {
-  const fromData = await request.formData();
-  const data = Object.fromEntries(fromData);
+  const formData = await request.formData();
+  const data = Object.fromEntries(formData);
+
+  const errors = {};
+
+  if (!data.customer || data.customer.trim().length < 3) {
+    errors.customer = "Please enter a valid name 👱‍♂️";
+  }
+
+  if (!isValidPhone(data.phone)) {
+    errors.phone = "Enter correct number 📱";
+  }
+
+  if (!data.address || data.address.trim().length < 4) {
+    errors.address = "Write your full address for delivery";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { errors, values: data };
+  }
 
   const order = {
     ...data,
     cart: JSON.parse(data.cart),
     priority: data.priority === "on",
   };
-  // console.log(order)
 
   const newOrder = await createOrder(order);
 
